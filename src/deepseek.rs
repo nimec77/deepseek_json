@@ -13,19 +13,19 @@ use crate::config::Config;
 pub enum DeepSeekError {
     #[error("DeepSeek servers are currently busy. Please try again in a few moments.")]
     ServerBusy,
-    
+
     #[error("Network connection failed: {message}")]
     NetworkError { message: String },
-    
+
     #[error("Request timed out after {seconds} seconds")]
     Timeout { seconds: u64 },
-    
+
     #[error("API error ({status}): {message}")]
     ApiError { status: u16, message: String },
-    
+
     #[error("Failed to parse response: {message}")]
     ParseError { message: String },
-    
+
     #[error("Configuration error: {message}")]
     ConfigError { message: String },
 }
@@ -35,32 +35,39 @@ impl DeepSeekError {
     pub fn is_server_busy(&self) -> bool {
         matches!(self, DeepSeekError::ServerBusy)
     }
-    
+
     /// Check if the error is a network-related issue
     pub fn is_network_error(&self) -> bool {
         matches!(self, DeepSeekError::NetworkError { .. })
     }
-    
+
     /// Get user-friendly error message
     pub fn user_message(&self) -> String {
         match self {
             DeepSeekError::ServerBusy => {
-                "🚫 DeepSeek servers are currently busy. Please try again in a few moments.".to_string()
+                "🚫 DeepSeek servers are currently busy. Please try again in a few moments."
+                    .to_string()
             }
             DeepSeekError::NetworkError { .. } => {
-                "🌐 Network connection failed. Please check your internet connection and try again.".to_string()
+                "🌐 Network connection failed. Please check your internet connection and try again."
+                    .to_string()
             }
             DeepSeekError::Timeout { seconds } => {
-                format!("⏰ Request timed out after {} seconds. The server might be overloaded.", seconds)
+                format!(
+                    "⏰ Request timed out after {} seconds. The server might be overloaded.",
+                    seconds
+                )
             }
-            DeepSeekError::ApiError { status, .. } => {
-                match *status {
-                    429 => "🚫 Rate limit exceeded. Please wait a moment before trying again.".to_string(),
-                    503 => "🚫 Service temporarily unavailable. Please try again later.".to_string(),
-                    502 | 504 => "🚫 Server gateway error. Please try again in a few moments.".to_string(),
-                    _ => format!("❌ API error ({}). Please try again later.", status),
+            DeepSeekError::ApiError { status, .. } => match *status {
+                429 => {
+                    "🚫 Rate limit exceeded. Please wait a moment before trying again.".to_string()
                 }
-            }
+                503 => "🚫 Service temporarily unavailable. Please try again later.".to_string(),
+                502 | 504 => {
+                    "🚫 Server gateway error. Please try again in a few moments.".to_string()
+                }
+                _ => format!("❌ API error ({}). Please try again later.", status),
+            },
             DeepSeekError::ParseError { .. } => {
                 "⚠️ Failed to parse server response. Please try again.".to_string()
             }
@@ -202,12 +209,13 @@ impl DeepSeekClient {
         }
 
         // Parse the response
-        let api_response: ApiResponse = response
-            .json()
-            .await
-            .map_err(|e| DeepSeekError::ParseError {
-                message: format!("Failed to parse API response: {}", e),
-            })?;
+        let api_response: ApiResponse =
+            response
+                .json()
+                .await
+                .map_err(|e| DeepSeekError::ParseError {
+                    message: format!("Failed to parse API response: {}", e),
+                })?;
 
         if api_response.choices.is_empty() {
             return Err(DeepSeekError::ParseError {
@@ -216,8 +224,8 @@ impl DeepSeekClient {
         }
 
         let content = &api_response.choices[0].message.content;
-        let parsed_response: DeepSeekResponse = serde_json::from_str(content)
-            .map_err(|e| DeepSeekError::ParseError {
+        let parsed_response: DeepSeekResponse =
+            serde_json::from_str(content).map_err(|e| DeepSeekError::ParseError {
                 message: format!("Failed to parse JSON response from DeepSeek: {}", e),
             })?;
 
@@ -241,7 +249,7 @@ impl DeepSeekClient {
             .map_err(|e| self.map_reqwest_error(e))?;
 
         let status = health_check.status();
-        
+
         // Check for server busy conditions
         match status {
             StatusCode::TOO_MANY_REQUESTS => Err(DeepSeekError::ServerBusy),
@@ -297,7 +305,11 @@ impl DeepSeekClient {
     }
 
     /// Handle error responses from the server
-    async fn handle_error_response(&self, status: StatusCode, response: reqwest::Response) -> DeepSeekError {
+    async fn handle_error_response(
+        &self,
+        status: StatusCode,
+        response: reqwest::Response,
+    ) -> DeepSeekError {
         let error_text = response
             .text()
             .await

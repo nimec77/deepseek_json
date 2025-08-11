@@ -6,7 +6,7 @@ pub mod deepseek;
 
 pub use config::Config;
 pub use console::Console;
-pub use deepseek::{DeepSeekClient, DeepSeekResponse, DeepSeekError};
+pub use deepseek::{DeepSeekClient, DeepSeekError, DeepSeekResponse};
 
 /// Application struct that encapsulates the core functionality
 pub struct App {
