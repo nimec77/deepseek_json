@@ -6,7 +6,7 @@ pub mod deepseek;
 
 pub use config::Config;
 pub use console::Console;
-pub use deepseek::{DeepSeekClient, DeepSeekResponse};
+pub use deepseek::{DeepSeekClient, DeepSeekResponse, DeepSeekError};
 
 /// Application struct that encapsulates the core functionality
 pub struct App {
@@ -21,7 +21,7 @@ impl App {
         let config = Config::load().context("Failed to load configuration")?;
 
         // Initialize DeepSeek client
-        let client = DeepSeekClient::new(config).context("Failed to initialize DeepSeek client")?;
+        let client = DeepSeekClient::new(config).map_err(|e| anyhow::anyhow!("{}", e))?;
 
         // Create console interface
         let console = Console::new(client.clone());
@@ -32,7 +32,7 @@ impl App {
     /// Create a new application instance with custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
         // Initialize DeepSeek client
-        let client = DeepSeekClient::new(config).context("Failed to initialize DeepSeek client")?;
+        let client = DeepSeekClient::new(config).map_err(|e| anyhow::anyhow!("{}", e))?;
 
         // Create console interface
         let console = Console::new(client.clone());
@@ -58,7 +58,7 @@ impl App {
         self.client
             .send_request(input)
             .await
-            .context("Failed to send request")
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 }
 

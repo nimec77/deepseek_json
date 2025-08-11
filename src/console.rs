@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use colored::*;
 use std::io::{self, Write};
 
-use crate::deepseek::{DeepSeekClient, DeepSeekResponse};
+use crate::deepseek::{DeepSeekClient, DeepSeekResponse, DeepSeekError};
 
 /// Console interface for the DeepSeek application
 pub struct Console {
@@ -93,17 +93,61 @@ impl Console {
         );
     }
 
-    /// Display an error message
+    /// Display an error message with context-aware messaging
     pub fn display_error(error: &anyhow::Error) {
-        println!(
-            "{} {}",
-            "❌ Error:".bright_red().bold(),
-            error.to_string().red()
-        );
-        println!(
-            "{}",
-            "Please check your API key and network connection.\n".red()
-        );
+        // Try to downcast to our custom DeepSeekError
+        if let Some(deepseek_error) = error.downcast_ref::<DeepSeekError>() {
+            Self::display_deepseek_error(deepseek_error);
+        } else {
+            // Fallback for other errors
+            println!(
+                "{} {}",
+                "❌ Error:".bright_red().bold(),
+                error.to_string().red()
+            );
+            println!(
+                "{}",
+                "Please check your configuration and try again.\n".red()
+            );
+        }
+    }
+
+    /// Display a DeepSeekError with appropriate styling and context
+    pub fn display_deepseek_error(error: &DeepSeekError) {
+        let user_message = error.user_message();
+        
+        match error {
+            DeepSeekError::ServerBusy => {
+                println!("{}", user_message.bright_yellow().bold());
+                println!("{}", "💡 Tip: Try again in a few minutes when server load is lower.".yellow());
+            }
+            DeepSeekError::NetworkError { .. } => {
+                println!("{}", user_message.bright_red().bold());
+                println!("{}", "💡 Tip: Check your internet connection and firewall settings.".red());
+            }
+            DeepSeekError::Timeout { .. } => {
+                println!("{}", user_message.bright_yellow().bold());
+                println!("{}", "💡 Tip: The server might be overloaded. Try again later.".yellow());
+            }
+            DeepSeekError::ApiError { status, .. } => {
+                println!("{}", user_message.bright_red().bold());
+                match *status {
+                    401 => println!("{}", "💡 Tip: Check your DEEPSEEK_API_KEY environment variable.".red()),
+                    403 => println!("{}", "💡 Tip: Your API key may not have sufficient permissions.".red()),
+                    429 => println!("{}", "💡 Tip: You've hit the rate limit. Wait before trying again.".red()),
+                    _ => println!("{}", "💡 Tip: Check the DeepSeek API documentation for more details.".red()),
+                }
+            }
+            DeepSeekError::ParseError { .. } => {
+                println!("{}", user_message.bright_magenta().bold());
+                println!("{}", "💡 Tip: The server response was unexpected. Try rephrasing your query.".magenta());
+            }
+            DeepSeekError::ConfigError { .. } => {
+                println!("{}", user_message.bright_red().bold());
+                println!("{}", "💡 Tip: Check your environment variables and configuration.".red());
+            }
+        }
+        println!(); // Add spacing
     }
 
     /// Display a goodbye message
@@ -131,7 +175,7 @@ impl Console {
 
             match self.client.send_request(&input).await {
                 Ok(response) => Self::display_response(&response),
-                Err(e) => Self::display_error(&e),
+                Err(e) => Self::display_deepseek_error(&e),
             }
         }
 
