@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use chrono::Utc;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
@@ -71,18 +72,20 @@ pub fn new(config: Config) -> Result<Self> {
 }
     /// Send a request to the DeepSeek API and return a structured response
     pub async fn send_request(&self, user_input: &str) -> Result<DeepSeekResponse> {
-        let json_format_prompt = r#"
+        let current_timestamp = Utc::now().to_rfc3339();
+        
+        let json_format_prompt = format!(r#"
 Please respond with a JSON object containing the following fields:
-{
+{{
   "title": "A concise title for the topic (string)",
   "description": "A brief description or summary (string)",
   "content": "The main content or detailed response (string)",
   "category": "Optional category classification (string or null)",
-  "timestamp": "Optional timestamp in ISO 8601 format (string or null)",
+  "timestamp": "Current response timestamp: {} (string)",
   "confidence": "Optional confidence score between 0.0 and 1.0 (number or null)"
-}
+}}
 
-Make sure to provide valid JSON format in your response."#;
+Make sure to provide valid JSON format in your response. Use the provided timestamp as the current response time."#, current_timestamp);
 
         let combined_prompt = format!("{}\n\n{}", user_input, json_format_prompt);
 
