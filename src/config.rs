@@ -21,7 +21,6 @@ pub struct Config {
 impl Config {
     /// Load configuration from environment variables
     pub fn load() -> Result<Self> {
-        dotenv::dotenv().ok();
 
         let api_key = env::var("DEEPSEEK_API_KEY")
             .context("DEEPSEEK_API_KEY environment variable not set")?;
@@ -34,17 +33,17 @@ impl Config {
         let max_tokens = env::var("DEEPSEEK_MAX_TOKENS")
             .unwrap_or_else(|_| DEFAULT_MAX_TOKENS.to_string())
             .parse::<u32>()
-            .context("MAX_TOKENS must be a valid number")?;
+            .context("DEEPSEEK_MAX_TOKENS must be a valid number")?;
 
         let temperature = env::var("DEEPSEEK_TEMPERATURE")
             .unwrap_or_else(|_| DEFAULT_TEMPERATURE.to_string())
             .parse::<f32>()
-            .context("TEMPERATURE must be a valid number")?;
+            .context("DEEPSEEK_TEMPERATURE must be a valid number")?;
 
         let timeout = env::var("DEEPSEEK_TIMEOUT")
             .unwrap_or_else(|_| DEFAULT_TIMEOUT.to_string())
             .parse::<u64>()
-            .context("TIMEOUT must be a valid number")?;
+            .context("DEEPSEEK_TIMEOUT must be a valid number")?;
 
         Ok(Self {
             api_key,

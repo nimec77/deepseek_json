@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use colored::*;
 use std::io::{self, Write};
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 use crate::deepseek::{DeepSeekClient, DeepSeekError, DeepSeekResponse};
 
@@ -29,15 +30,14 @@ impl Console {
         println!("{}", "Type '/quit' or '/exit' to stop.\n".blue());
     }
 
-    /// Get user input from the console
-    pub fn get_user_input() -> Result<String> {
+    /// Get user input from the console (async version)
+    pub async fn get_user_input() -> Result<String> {
         print!("{}", "💬 Enter your question: ".bright_cyan().bold());
         io::stdout().flush().unwrap();
 
+        let mut reader = BufReader::new(tokio::io::stdin());
         let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .context("Failed to read user input")?;
+        reader.read_line(&mut input).await.context("Failed to read user input")?;
 
         Ok(input.trim().to_string())
     }
@@ -188,22 +188,48 @@ impl Console {
         Self::display_welcome();
 
         loop {
-            let input = Self::get_user_input()?;
+            tokio::select! {
+                // Handle Ctrl+C gracefully
+                _ = tokio::signal::ctrl_c() => {
+                    Self::display_goodbye();
+                    break;
+                }
+                // Handle user input
+                input_result = Self::get_user_input() => {
+                    let input = match input_result {
+                        Ok(input) => input,
+                        Err(e) => {
+                            println!("Error reading input: {}", e);
+                            continue;
+                        }
+                    };
 
-            if input.is_empty() {
-                continue;
-            }
+                    if input.is_empty() {
+                        continue;
+                    }
 
-            if Self::is_quit_command(&input) {
-                Self::display_goodbye();
-                break;
-            }
+                    if Self::is_quit_command(&input) {
+                        Self::display_goodbye();
+                        break;
+                    }
 
-            Self::display_loading();
+                    Self::display_loading();
 
-            match self.client.send_request(&input).await {
-                Ok(response) => Self::display_response(&response),
-                Err(e) => Self::display_deepseek_error(&e),
+                    // Allow request to be cancelled by Ctrl+C
+                    tokio::select! {
+                        _ = tokio::signal::ctrl_c() => {
+                            println!("\n{}", "⚠️ Request cancelled by user".bright_yellow());
+                            Self::display_goodbye();
+                            break;
+                        }
+                        result = self.client.send_request(&input) => {
+                            match result {
+                                Ok(response) => Self::display_response(&response),
+                                Err(e) => Self::display_deepseek_error(&e),
+                            }
+                        }
+                    }
+                }
             }
         }
 

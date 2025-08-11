@@ -15,6 +15,7 @@ A robust Rust CLI application that sends requests to DeepSeek's API and receives
 - ⏱️ **Timeout Support**: Configurable request timeouts with health checks
 - 🌐 **Network Resilience**: Server availability checks and intelligent error handling
 - 🔧 **Modular Architecture**: Clean separation of concerns with dedicated modules
+- ⚡ **Signal Handling**: Graceful shutdown with Ctrl+C and request cancellation support
 
 ## JSON Response Structure
 
@@ -81,7 +82,10 @@ The application requests responses in the following JSON format:
    - Send the request to DeepSeek
    - Parse the JSON response
    - Display structured fields in the console with colors
-4. **Type `/quit` or `/exit`** to stop
+4. **Exit options**:
+   - Type `/quit` or `/exit` to stop gracefully
+   - Press `Ctrl+C` at any time for immediate shutdown
+   - Press `Ctrl+C` during a request to cancel it and return to the prompt
 
 ### CLI Mode (Single Query)
 
@@ -99,6 +103,9 @@ cargo run -- --query "Write a poem" --temperature 1.2 --max-tokens 500
 
 # Short form options
 cargo run -- -q "What is machine learning?" -t 0.8
+
+# With custom base URL and timeout
+cargo run -- -q "Explain quantum computing" --base-url "https://custom-api.example.com" --timeout 300
 ```
 
 ### Command-Line Options
@@ -107,6 +114,8 @@ cargo run -- -q "What is machine learning?" -t 0.8
 - `-m, --model <MODEL>`: Override the default model (default: `deepseek-chat`)
 - `-t, --temperature <TEMPERATURE>`: Set temperature for response generation (0.0-2.0, default: 0.7)
 - `--max-tokens <MAX_TOKENS>`: Set maximum number of tokens in response (default: 4096)
+- `--timeout <TIMEOUT>`: Request timeout in seconds (default: 180)
+- `--base-url <BASE_URL>`: DeepSeek API base URL (overrides environment variable)
 - `-h, --help`: Show help information
 - `-V, --version`: Show version information
 
@@ -153,7 +162,7 @@ $ cargo run -- --query "What is machine learning?" --temperature 0.8
 ## Dependencies
 
 - `tokio`: Async runtime for handling HTTP requests and concurrent operations
-- `reqwest`: HTTP client for API communication with JSON support
+- `reqwest`: HTTP client for API communication with JSON support and TLS support
 - `serde`: Serialization/deserialization framework with derive macros
 - `serde_json`: JSON parsing and manipulation support
 - `anyhow`: Simplified error handling and context management
@@ -162,6 +171,8 @@ $ cargo run -- --query "What is machine learning?" --temperature 0.8
 - `clap`: Command-line argument parsing with derive macros
 - `colored`: Terminal color output for beautiful console display
 - `chrono`: Date and time handling with serialization support
+- `tracing`: Structured logging framework for debugging and monitoring
+- `tracing-subscriber`: Logging subscriber for console output with environment filtering
 
 ## Configuration
 
@@ -179,8 +190,14 @@ The application can be configured using environment variables in your `.env` fil
 
 ### Example `.env` file:
 ```env
-DEEPSEEK_API_KEY=your_actual_api_key_here
+# DeepSeek API Configuration
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
+```
+
+**Advanced Configuration (Optional)**:
+You can also set these environment variables for fine-tuning:
+```env
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_MAX_TOKENS=4096
 DEEPSEEK_TEMPERATURE=0.7
@@ -190,6 +207,38 @@ DEEPSEEK_TIMEOUT=180
 **Note**: The minimal `.env` file only requires `DEEPSEEK_API_KEY`. See `env.example` for the template.
 
 **Note**: Command-line arguments will override environment variable settings.
+
+## Logging and Debugging
+
+The application uses structured logging with `tracing` for better debugging and monitoring:
+
+### Log Levels
+
+Set the `RUST_LOG` environment variable to control logging output:
+
+```bash
+# Show info-level logs and above (default)
+export RUST_LOG=info
+
+# Show debug logs for detailed request/response information
+export RUST_LOG=debug
+
+# Show only warnings and errors
+export RUST_LOG=warn
+
+# Show all logs including trace level
+export RUST_LOG=trace
+
+# Target specific modules (example)
+export RUST_LOG=deepseek_json::deepseek=debug,info
+```
+
+### Logging Features
+
+- 📊 **Request Retry Logging**: Automatic logging of retry attempts with exponential backoff details
+- 🔍 **Structured Output**: JSON-formatted logs with timestamps and contextual information  
+- 🎯 **Configurable Levels**: Fine-grained control over log verbosity
+- 🌐 **Network Debugging**: Detailed HTTP request/response information in debug mode
 
 ## Project Architecture
 
@@ -204,14 +253,16 @@ The application is built with a modular architecture for maintainability and ext
 
 - **`deepseek.rs`**: DeepSeek API client and communication layer
   - Custom error types with `thiserror` integration
-  - HTTP client with timeout and retry logic
+  - HTTP client with timeout and exponential backoff retry logic (3 attempts)
   - JSON response parsing and validation
-  - Server health checks and availability monitoring
+  - Structured logging for request tracking and debugging
+  - Advanced error mapping and network connectivity handling
 
 - **`console.rs`**: User interface and terminal interaction
   - Colored output with emoji indicators
-  - Interactive prompt handling
-  - Error display with contextual help
+  - Interactive prompt handling with async I/O
+  - Ctrl+C signal handling and request cancellation
+  - Error display with contextual help and user-friendly messaging
   - Welcome and goodbye messages
 
 - **`lib.rs`**: Application orchestration and public API
@@ -220,17 +271,19 @@ The application is built with a modular architecture for maintainability and ext
   - Both interactive and single-query modes
 
 - **`main.rs`**: CLI argument parsing and entry point
-  - Command-line argument processing with `clap`
+  - Command-line argument processing with `clap` 
+  - Structured logging initialization with environment filtering
   - Single query mode handling
   - Application startup and error handling
 
 ### Design Principles
 
-- **Async-First**: Built on `tokio` for efficient I/O handling
-- **Error Transparency**: Custom error types provide clear user feedback
-- **Configuration Flexibility**: Multiple ways to configure the application
+- **Async-First**: Built on `tokio` for efficient I/O handling with signal management
+- **Error Transparency**: Custom error types with retry logic and clear user feedback
+- **Configuration Flexibility**: Multiple ways to configure via environment variables and CLI args
+- **Observability**: Structured logging with `tracing` for debugging and monitoring
 - **Separation of Concerns**: Each module has a single, well-defined responsibility
-- **User Experience**: Prioritizes clear feedback and beautiful terminal output
+- **User Experience**: Prioritizes clear feedback, signal handling, and beautiful terminal output
 
 ## Error Handling
 
@@ -251,7 +304,13 @@ The application features advanced error handling with custom error types and use
 - 🔍 **Detailed Logging**: Comprehensive error context for troubleshooting
 - 🛡️ **Graceful Degradation**: Application continues running after recoverable errors
 
+### Advanced Retry Logic
+- 🔄 **Exponential Backoff**: Automatic retry with increasing delays (500ms, 1s, 2s)
+- 🎯 **Smart Retry Conditions**: Only retries on server busy and network errors
+- 📊 **Retry Logging**: Structured logs showing retry attempts and backoff timing
+- ⚡ **Configurable Attempts**: Maximum of 3 attempts before giving up
+
 ### Health Checks
 - Server availability checks before sending requests
-- Automatic retry suggestions for transient failures
+- Automatic retry suggestions for transient failures  
 - Network connectivity validation

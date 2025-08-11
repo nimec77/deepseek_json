@@ -1,59 +1,59 @@
 use anyhow::{Context, Result};
-use clap::{Arg, Command};
+use clap::Parser;
 use std::env;
 
-use deepseek_json::{init, run, App, Config};
+use deepseek_json::{run, App, Config};
+
+#[derive(Parser, Debug)]
+#[command(name = "deepseek-json")]
+#[command(version = "0.1.0")]
+#[command(author = "Your Name <nimec77@gmail.com>")]
+#[command(about = "A CLI tool for interacting with DeepSeek API and getting structured JSON responses")]
+struct Cli {
+    /// Send a single query and exit (non-interactive mode)
+    #[arg(short, long)]
+    query: Option<String>,
+
+    /// Override the default model
+    #[arg(short, long, default_value = "deepseek-chat")]
+    model: String,
+
+    /// Set the temperature for response generation (0.0-2.0)
+    #[arg(short, long, default_value_t = 0.7)]
+    temperature: f32,
+
+    /// Set the maximum number of tokens in the response
+    #[arg(long, default_value_t = 4096)]
+    max_tokens: u32,
+
+    /// Request timeout in seconds
+    #[arg(long, default_value_t = 180)]
+    timeout: u64,
+
+    /// DeepSeek API base URL
+    #[arg(long)]
+    base_url: Option<String>,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
     if env::var("RUST_LOG").is_err() {
-        unsafe {
-            env::set_var("RUST_LOG", "info");
-        }
+        env::set_var("RUST_LOG", "info");
     }
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
+    // Load environment variables once at startup
+    dotenv::dotenv().ok();
 
     // Parse command line arguments
-    let matches = Command::new("deepseek-json")
-        .version("0.1.0")
-        .author("Your Name <nimec77@gmail.com>")
-        .about("A CLI tool for interacting with DeepSeek API and getting structured JSON responses")
-        .arg(
-            Arg::new("query")
-                .short('q')
-                .long("query")
-                .value_name("QUERY")
-                .help("Send a single query and exit (non-interactive mode)")
-                .required(false),
-        )
-        .arg(
-            Arg::new("model")
-                .short('m')
-                .long("model")
-                .value_name("MODEL")
-                .help("Override the default model")
-                .required(false),
-        )
-        .arg(
-            Arg::new("temperature")
-                .short('t')
-                .long("temperature")
-                .value_name("TEMPERATURE")
-                .help("Set the temperature for response generation (0.0-2.0)")
-                .required(false),
-        )
-        .arg(
-            Arg::new("max-tokens")
-                .long("max-tokens")
-                .value_name("MAX_TOKENS")
-                .help("Set the maximum number of tokens in the response")
-                .required(false),
-        )
-        .get_matches();
+    let cli = Cli::parse();
 
     // Handle single query mode
-    if let Some(query) = matches.get_one::<String>("query") {
-        return handle_single_query(query, &matches).await;
+    if let Some(query) = &cli.query {
+        return handle_single_query(query, &cli).await;
     }
 
     // Run in interactive mode
@@ -61,33 +61,27 @@ async fn main() -> Result<()> {
 }
 
 /// Handle a single query in non-interactive mode
-async fn handle_single_query(query: &str, matches: &clap::ArgMatches) -> Result<()> {
-    // Create custom configuration if needed
-    let app = if has_custom_config(matches) {
-        let mut config = Config::load().context("Failed to load configuration")?;
+async fn handle_single_query(query: &str, cli: &Cli) -> Result<()> {
+    // Create configuration with CLI overrides
+    let mut config = Config::load().context("Failed to load configuration")?;
 
-        if let Some(model) = matches.get_one::<String>("model") {
-            config.model = model.clone();
-        }
+    // Apply CLI overrides
+    config.model = cli.model.clone();
+    config.temperature = cli.temperature;
+    config.max_tokens = cli.max_tokens;
+    config.timeout = cli.timeout;
+    
+    if let Some(base_url) = &cli.base_url {
+        config.base_url = base_url.clone();
+    }
 
-        if let Some(temp_str) = matches.get_one::<String>("temperature") {
-            config.temperature = temp_str.parse().context("Invalid temperature value")?;
-        }
-
-        if let Some(tokens_str) = matches.get_one::<String>("max-tokens") {
-            config.max_tokens = tokens_str.parse().context("Invalid max-tokens value")?;
-        }
-
-        App::with_config(config)?
-    } else {
-        init()?
-    };
+    let app = App::with_config(config)?;
 
     // Send the request
     let response = app
         .send_request(query)
         .await
-        .context("Failed to process query")?;
+        .map_err(|e| anyhow::anyhow!("Failed to process query: {}", e))?;
 
     // Display the response in a clean format
     println!(
@@ -96,11 +90,4 @@ async fn handle_single_query(query: &str, matches: &clap::ArgMatches) -> Result<
     );
 
     Ok(())
-}
-
-/// Check if any custom configuration options were provided
-fn has_custom_config(matches: &clap::ArgMatches) -> bool {
-    matches.get_one::<String>("model").is_some()
-        || matches.get_one::<String>("temperature").is_some()
-        || matches.get_one::<String>("max-tokens").is_some()
 }

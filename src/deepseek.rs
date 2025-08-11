@@ -145,8 +145,28 @@ impl DeepSeekClient {
 
         Ok(Self { client, config })
     }
-    /// Send a request to the DeepSeek API and return a structured response
+    /// Send a request to the DeepSeek API with retry logic
     pub async fn send_request(&self, user_input: &str) -> Result<DeepSeekResponse, DeepSeekError> {
+        let mut attempts = 0;
+        let max_attempts = 3;
+        let mut backoff = Duration::from_millis(500);
+
+        loop {
+            match self.send_request_once(user_input).await {
+                Ok(response) => return Ok(response),
+                Err(e) if (e.is_server_busy() || e.is_network_error()) && attempts < max_attempts - 1 => {
+                    attempts += 1;
+                    tracing::warn!("Request attempt {} failed: {}, retrying in {:?}", attempts, e, backoff);
+                    tokio::time::sleep(backoff).await;
+                    backoff = backoff.saturating_mul(2);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    /// Send a single request to the DeepSeek API and return a structured response
+    async fn send_request_once(&self, user_input: &str) -> Result<DeepSeekResponse, DeepSeekError> {
         let current_timestamp = Utc::now().to_rfc3339();
 
         let json_format_prompt = format!(
@@ -188,10 +208,7 @@ impl DeepSeekClient {
             temperature: self.config.temperature,
         };
 
-        // First, do a quick health check with a shorter timeout
-        self.check_server_availability().await?;
-
-        // Send the actual request
+        // Send the request
         let response = self
             .client
             .post(format!("{}/chat/completions", self.config.base_url))
@@ -230,33 +247,6 @@ impl DeepSeekClient {
             })?;
 
         Ok(parsed_response)
-    }
-
-    /// Check if the server is available with a quick health check
-    async fn check_server_availability(&self) -> Result<(), DeepSeekError> {
-        let health_client = Client::builder()
-            .timeout(Duration::from_secs(10)) // Short timeout for health check
-            .user_agent("deepseek_json/0.1.0")
-            .build()
-            .map_err(|e| DeepSeekError::NetworkError {
-                message: format!("Failed to create health check client: {}", e),
-            })?;
-
-        let health_check = health_client
-            .get(&self.config.base_url)
-            .send()
-            .await
-            .map_err(|e| self.map_reqwest_error(e))?;
-
-        let status = health_check.status();
-
-        // Check for server busy conditions
-        match status {
-            StatusCode::TOO_MANY_REQUESTS => Err(DeepSeekError::ServerBusy),
-            StatusCode::SERVICE_UNAVAILABLE => Err(DeepSeekError::ServerBusy),
-            StatusCode::BAD_GATEWAY | StatusCode::GATEWAY_TIMEOUT => Err(DeepSeekError::ServerBusy),
-            _ => Ok(()),
-        }
     }
 
     /// Map reqwest errors to our custom error types

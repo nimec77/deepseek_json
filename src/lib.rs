@@ -54,11 +54,8 @@ impl App {
     }
 
     /// Send a single request and return the response (useful for non-interactive usage)
-    pub async fn send_request(&self, input: &str) -> Result<DeepSeekResponse> {
-        self.client
-            .send_request(input)
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))
+    pub async fn send_request(&self, input: &str) -> Result<DeepSeekResponse, DeepSeekError> {
+        self.client.send_request(input).await
     }
 }
 
@@ -70,9 +67,6 @@ impl Default for App {
 
 /// Initialize the application with environment setup
 pub fn init() -> Result<App> {
-    // Load environment variables
-    dotenv::dotenv().ok();
-
     App::new()
 }
 
