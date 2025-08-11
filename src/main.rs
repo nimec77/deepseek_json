@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
             env::set_var("RUST_LOG", "info");
         }
     }
-    
+
     // Parse command line arguments
     let matches = Command::new("deepseek-json")
         .version("0.1.0")
@@ -65,40 +65,42 @@ async fn handle_single_query(query: &str, matches: &clap::ArgMatches) -> Result<
     // Create custom configuration if needed
     let app = if has_custom_config(matches) {
         let mut config = Config::load().context("Failed to load configuration")?;
-        
+
         if let Some(model) = matches.get_one::<String>("model") {
             config.model = model.clone();
         }
-        
+
         if let Some(temp_str) = matches.get_one::<String>("temperature") {
-            config.temperature = temp_str.parse()
-                .context("Invalid temperature value")?;
+            config.temperature = temp_str.parse().context("Invalid temperature value")?;
         }
-        
+
         if let Some(tokens_str) = matches.get_one::<String>("max-tokens") {
-            config.max_tokens = tokens_str.parse()
-                .context("Invalid max-tokens value")?;
+            config.max_tokens = tokens_str.parse().context("Invalid max-tokens value")?;
         }
-        
+
         App::with_config(config)?
     } else {
         init()?
     };
 
     // Send the request
-    let response = app.send_request(query).await
+    let response = app
+        .send_request(query)
+        .await
         .context("Failed to process query")?;
 
     // Display the response in a clean format
-    println!("{}", serde_json::to_string_pretty(&response)
-        .context("Failed to serialize response")?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&response).context("Failed to serialize response")?
+    );
 
     Ok(())
 }
 
 /// Check if any custom configuration options were provided
 fn has_custom_config(matches: &clap::ArgMatches) -> bool {
-    matches.get_one::<String>("model").is_some() ||
-    matches.get_one::<String>("temperature").is_some() ||
-    matches.get_one::<String>("max-tokens").is_some()
+    matches.get_one::<String>("model").is_some()
+        || matches.get_one::<String>("temperature").is_some()
+        || matches.get_one::<String>("max-tokens").is_some()
 }

@@ -26,8 +26,8 @@ impl Config {
         let api_key = env::var("DEEPSEEK_API_KEY")
             .context("DEEPSEEK_API_KEY environment variable not set")?;
 
-        let base_url = env::var("DEEPSEEK_BASE_URL")
-            .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
+        let base_url =
+            env::var("DEEPSEEK_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
 
         let model = env::var("DEEPSEEK_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string());
 

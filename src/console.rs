@@ -17,9 +17,15 @@ impl Console {
 
     /// Display the welcome message and application information
     pub fn display_welcome() {
-        println!("{}", "🤖 DeepSeek JSON Chat Application".bright_blue().bold());
+        println!(
+            "{}",
+            "🤖 DeepSeek JSON Chat Application".bright_blue().bold()
+        );
         println!("{}", "This application sends your queries to DeepSeek and returns structured JSON responses.".blue());
-        println!("{}", "Make sure to set DEEPSEEK_API_KEY environment variable.".blue());
+        println!(
+            "{}",
+            "Make sure to set DEEPSEEK_API_KEY environment variable.".blue()
+        );
         println!("{}", "Type '/quit' or '/exit' to stop.\n".blue());
     }
 
@@ -29,7 +35,8 @@ impl Console {
         io::stdout().flush().unwrap();
 
         let mut input = String::new();
-        io::stdin().read_line(&mut input)
+        io::stdin()
+            .read_line(&mut input)
             .context("Failed to read user input")?;
 
         Ok(input.trim().to_string())
@@ -48,30 +55,55 @@ impl Console {
     /// Display the structured response from DeepSeek
     pub fn display_response(response: &DeepSeekResponse) {
         println!("\n{}", "📋 Structured Response:".bright_green().bold());
-        println!("{}", "┌─────────────────────────────────────────────────────────────".green());
-        println!("{} {}", "│ 🏷️  Title:".green(), response.title.bright_white().bold());
-        println!("{} {}", "│ 📝 Description:".green(), response.description.white());
+        println!(
+            "{}",
+            "┌─────────────────────────────────────────────────────────────".green()
+        );
+        println!(
+            "{} {}",
+            "│ 🏷️  Title:".green(),
+            response.title.bright_white().bold()
+        );
+        println!(
+            "{} {}",
+            "│ 📝 Description:".green(),
+            response.description.white()
+        );
         println!("{} {}", "│ 📄 Content:".green(), response.content.white());
-        
+
         if let Some(category) = &response.category {
             println!("{} {}", "│ 🏪 Category:".green(), category.white());
         }
-        
+
         if let Some(timestamp) = &response.timestamp {
             println!("{} {}", "│ ⏰ Timestamp:".green(), timestamp.white());
         }
-        
+
         if let Some(confidence) = response.confidence {
-            println!("{} {}", "│ 🎯 Confidence:".green(), format!("{:.2}", confidence).white());
+            println!(
+                "{} {}",
+                "│ 🎯 Confidence:".green(),
+                format!("{:.2}", confidence).white()
+            );
         }
-        
-        println!("{}", "└─────────────────────────────────────────────────────────────\n".green());
+
+        println!(
+            "{}",
+            "└─────────────────────────────────────────────────────────────\n".green()
+        );
     }
 
     /// Display an error message
     pub fn display_error(error: &anyhow::Error) {
-        println!("{} {}", "❌ Error:".bright_red().bold(), error.to_string().red());
-        println!("{}", "Please check your API key and network connection.\n".red());
+        println!(
+            "{} {}",
+            "❌ Error:".bright_red().bold(),
+            error.to_string().red()
+        );
+        println!(
+            "{}",
+            "Please check your API key and network connection.\n".red()
+        );
     }
 
     /// Display a goodbye message
@@ -85,7 +117,7 @@ impl Console {
 
         loop {
             let input = Self::get_user_input()?;
-            
+
             if input.is_empty() {
                 continue;
             }

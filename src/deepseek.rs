@@ -58,34 +58,39 @@ pub struct DeepSeekClient {
 }
 
 impl DeepSeekClient {
-/// Create a new DeepSeek client with the given configuration
-pub fn new(config: Config) -> Result<Self> {
-    config.validate()?;
+    /// Create a new DeepSeek client with the given configuration
+    pub fn new(config: Config) -> Result<Self> {
+        config.validate()?;
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(config.timeout))
-        .user_agent("openai_chat/0.1.0")
-        .build()
-        .context("Failed to create HTTP client")?;
+        let client = Client::builder()
+            .timeout(Duration::from_secs(config.timeout))
+            .user_agent("openai_chat/0.1.0")
+            .build()
+            .context("Failed to create HTTP client")?;
 
-    Ok(Self { client, config })
-}
+        Ok(Self { client, config })
+    }
     /// Send a request to the DeepSeek API and return a structured response
     pub async fn send_request(&self, user_input: &str) -> Result<DeepSeekResponse> {
         let current_timestamp = Utc::now().to_rfc3339();
-        
-        let json_format_prompt = format!(r#"
-Please respond with a JSON object containing the following fields:
-{{
-  "title": "A concise title for the topic (string)",
-  "description": "A brief description or summary (string)",
-  "content": "The main content or detailed response (string)",
-  "category": "Optional category classification (string or null)",
-  "timestamp": "Current response timestamp: {} (string)",
-  "confidence": "Optional confidence score between 0.0 and 1.0 (number or null)"
-}}
 
-Make sure to provide valid JSON format in your response. Use the provided timestamp as the current response time."#, current_timestamp);
+        let json_format_prompt = format!(
+            r#"
+                Please respond with a JSON object containing the following fields:
+                {{
+                "title": "A concise title for the topic (string)",
+                "description": "A brief description or summary (string)",
+                "content": "The main content or detailed response (string)",
+                "category": "Optional category classification (string or null)",
+                "timestamp": "Current response timestamp: {} (string)",
+                "confidence": "Optional confidence score between 0.0 and 1.0 (number or null)"
+                }}
+
+                Make sure to provide valid JSON format in your response. Use the provided timestamp as the current response time.
+                Do not include any other text or comments in your response.
+            "#,
+            current_timestamp
+        );
 
         let combined_prompt = format!("{}\n\n{}", user_input, json_format_prompt);
 
@@ -119,7 +124,10 @@ Make sure to provide valid JSON format in your response. Use the provided timest
             .context("Failed to send request to DeepSeek API")?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(anyhow::anyhow!("API request failed: {}", error_text));
         }
 
@@ -129,8 +137,8 @@ Make sure to provide valid JSON format in your response. Use the provided timest
             .context("Failed to parse API response")?;
 
         let content = &api_response.choices[0].message.content;
-        let parsed_response: DeepSeekResponse = serde_json::from_str(content)
-            .context("Failed to parse JSON response from DeepSeek")?;
+        let parsed_response: DeepSeekResponse =
+            serde_json::from_str(content).context("Failed to parse JSON response from DeepSeek")?;
 
         Ok(parsed_response)
     }
