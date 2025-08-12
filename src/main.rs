@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use std::env;
 
-use deepseek_json::{run, App, Config};
+use deepseek_json::{run, App, Config, DEFAULT_MAX_QUESTIONS};
 
 #[derive(Parser, Debug)]
 #[command(name = "deepseek-json")]
@@ -33,6 +33,14 @@ struct Cli {
     /// DeepSeek API base URL
     #[arg(long)]
     base_url: Option<String>,
+
+    /// Enable TaskFinisher-JSON mode
+    #[arg(long, default_value_t = false)]
+    taskfinisher: bool,
+
+    /// Maximum clarifying questions for TaskFinisher-JSON mode
+    #[arg(long, default_value_t = DEFAULT_MAX_QUESTIONS)]
+    max_questions: u32,
 }
 
 #[tokio::main]
@@ -52,9 +60,10 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Handle single query mode
-    if let Some(query) = &cli.query {
-        return handle_single_query(query, &cli).await;
+    if cli.taskfinisher {
+        return handle_taskfinisher_mode(&cli).await;
     }
+    if let Some(query) = &cli.query { return handle_single_query(query, &cli).await; }
 
     // Run in interactive mode
     run().await.context("Failed to run application")
@@ -90,4 +99,19 @@ async fn handle_single_query(query: &str, cli: &Cli) -> Result<()> {
     );
 
     Ok(())
+}
+
+/// Handle TaskFinisher-JSON mode
+async fn handle_taskfinisher_mode(cli: &Cli) -> Result<()> {
+    let mut config = Config::load().context("Failed to load configuration")?;
+    config.model = cli.model.clone();
+    config.temperature = cli.temperature;
+    config.max_tokens = cli.max_tokens;
+    config.timeout = cli.timeout;
+    if let Some(base_url) = &cli.base_url { config.base_url = base_url.clone(); }
+
+    let app = App::with_config(config)?;
+
+    let initial_prompt = cli.query.as_deref();
+    app.run_taskfinisher(initial_prompt, cli.max_questions).await
 }

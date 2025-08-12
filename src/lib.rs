@@ -3,10 +3,15 @@ use anyhow::{Context, Result};
 pub mod config;
 pub mod console;
 pub mod deepseek;
+pub mod taskfinisher;
 
 pub use config::Config;
 pub use console::Console;
 pub use deepseek::{DeepSeekClient, DeepSeekError, DeepSeekResponse};
+pub use taskfinisher::{
+    parse_taskfinisher_response, build_system_prompt, AnswersPayload, TaskFinisherResult,
+    DEFAULT_MAX_QUESTIONS,
+};
 
 /// Application struct that encapsulates the core functionality
 pub struct App {
@@ -46,6 +51,14 @@ impl App {
             .run()
             .await
             .context("Application execution failed")
+    }
+
+    /// Run TaskFinisher-JSON interactive flow. If `initial_prompt` is None, the user will be asked.
+    pub async fn run_taskfinisher(&self, initial_prompt: Option<&str>, max_questions: u32) -> Result<()> {
+        self.console
+            .run_taskfinisher(initial_prompt, max_questions)
+            .await
+            .context("TaskFinisher flow failed")
     }
 
     /// Get a reference to the DeepSeek client

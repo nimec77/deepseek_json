@@ -6,6 +6,7 @@ A robust Rust CLI application that sends requests to DeepSeek's API and receives
 
 - 🤖 **DeepSeek Integration**: Direct integration with DeepSeek's chat API using `deepseek-chat` model
 - 📋 **Structured JSON Responses**: Enforces JSON format with predefined schema using response_format
+- 🧩 **TaskFinisher-JSON Mode**: Interactive clarifications flow producing a final technical task JSON artifact with self-stop token
 - 🎯 **Field Extraction**: Automatically parses and displays JSON fields with colored output
 - 🛡️ **Advanced Error Handling**: Custom error types with user-friendly messages and recovery suggestions
 - 🔄 **Interactive Mode**: Continuous chat interface until user exits with `/quit` or `/exit` commands
@@ -106,6 +107,9 @@ cargo run -- -q "What is machine learning?" -t 0.8
 
 # With custom base URL and timeout
 cargo run -- -q "Explain quantum computing" --base-url "https://custom-api.example.com" --timeout 300
+
+# TaskFinisher-JSON mode (technical task artifact)
+cargo run -- --taskfinisher --query "Build a Rust service that fetches prices and caches them" --max-questions 3
 ```
 
 ### Command-Line Options
@@ -116,6 +120,8 @@ cargo run -- -q "Explain quantum computing" --base-url "https://custom-api.examp
 - `--max-tokens <MAX_TOKENS>`: Set maximum number of tokens in response (default: 4096)
 - `--timeout <TIMEOUT>`: Request timeout in seconds (default: 180)
 - `--base-url <BASE_URL>`: DeepSeek API base URL (overrides environment variable)
+- `--taskfinisher`: Enable TaskFinisher-JSON mode
+- `--max-questions <N>`: Limit clarifying questions in TaskFinisher mode (default: 3)
 - `-h, --help`: Show help information
 - `-V, --version`: Show version information
 

@@ -90,10 +90,10 @@ pub struct DeepSeekResponse {
 }
 
 /// API request/response structures
-#[derive(Debug, Serialize, Deserialize)]
-struct ChatMessage {
-    role: String,
-    content: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -103,6 +103,8 @@ struct ChatRequest {
     response_format: ResponseFormat,
     max_tokens: u32,
     temperature: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -206,6 +208,7 @@ impl DeepSeekClient {
             },
             max_tokens: self.config.max_tokens,
             temperature: self.config.temperature,
+            stop: None,
         };
 
         // Send the request
@@ -314,5 +317,44 @@ impl DeepSeekClient {
                 message: error_text,
             },
         }
+    }
+
+    /// Send arbitrary chat messages and return the raw assistant content string.
+    /// The response is requested as a JSON object to encourage strict JSON outputs.
+    pub async fn send_messages_raw(&self, messages: Vec<ChatMessage>) -> Result<String, DeepSeekError> {
+        let request = ChatRequest {
+            model: self.config.model.clone(),
+            messages,
+            response_format: ResponseFormat { format_type: "json_object".to_string() },
+            max_tokens: self.config.max_tokens,
+            temperature: self.config.temperature,
+            stop: None,
+        };
+
+        let response = self
+            .client
+            .post(format!("{}/chat/completions", self.config.base_url))
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| self.map_reqwest_error(e))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(self.handle_error_response(status, response).await);
+        }
+
+        let api_response: ApiResponse = response
+            .json()
+            .await
+            .map_err(|e| DeepSeekError::ParseError { message: format!("Failed to parse API response: {}", e) })?;
+
+        if api_response.choices.is_empty() {
+            return Err(DeepSeekError::ParseError { message: "No choices in API response".to_string() });
+        }
+
+        Ok(api_response.choices[0].message.content.clone())
     }
 }
