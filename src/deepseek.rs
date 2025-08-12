@@ -124,7 +124,7 @@ struct Choice {
 }
 
 /// DeepSeek API client
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DeepSeekClient {
     client: Client,
     config: Config,
@@ -374,5 +374,239 @@ impl DeepSeekClient {
         }
 
         Ok(api_response.choices[0].message.content.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::time::advance;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn build_config(base_url: &str) -> Config {
+        Config {
+            api_key: "test_key".to_string(),
+            base_url: base_url.to_string(),
+            model: "test-model".to_string(),
+            max_tokens: 256,
+            temperature: 0.1,
+            timeout: 2,
+        }
+    }
+
+    fn build_client(base_url: &str) -> DeepSeekClient {
+        DeepSeekClient::new(build_config(base_url)).expect("client should be created")
+    }
+
+    fn api_success_body(content_json: &str) -> serde_json::Value {
+        serde_json::json!({
+            "choices": [
+                { "message": { "role": "assistant", "content": content_json } }
+            ]
+        })
+    }
+
+    #[test]
+    fn new_with_invalid_config_returns_config_error() {
+        let bad_config = Config {
+            api_key: String::new(),
+            base_url: "http://localhost".to_string(),
+            model: "m".to_string(),
+            max_tokens: 1,
+            temperature: 0.0,
+            timeout: 1,
+        };
+
+        let err = DeepSeekClient::new(bad_config).unwrap_err();
+        match err {
+            DeepSeekError::ConfigError { message } => {
+                assert!(message.contains("API key cannot be empty"))
+            }
+            other => panic!("expected ConfigError, got {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn send_request_success_parses_response() {
+        let server = MockServer::start().await;
+        let client = build_client(&server.uri());
+
+        let content = serde_json::json!({
+            "title": "Hello",
+            "description": "World",
+            "content": "Body",
+            "category": "demo",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "confidence": 0.9
+        })
+        .to_string();
+
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(api_success_body(&content)))
+            .mount(&server)
+            .await;
+
+        let response = client
+            .send_request("please respond in json object format")
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.title, "Hello");
+        assert_eq!(response.description, "World");
+        assert_eq!(response.content, "Body");
+        assert_eq!(response.category.as_deref(), Some("demo"));
+        assert_eq!(response.timestamp.as_deref(), Some("2024-01-01T00:00:00Z"));
+        assert!((response.confidence.unwrap_or_default() - 0.9).abs() < f32::EPSILON);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn send_request_retries_and_returns_server_busy() {
+        let server = MockServer::start().await;
+        let client = build_client(&server.uri());
+
+        // Always return 503 to trigger retries and final failure
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(503).set_body_string("busy"))
+            .mount(&server)
+            .await;
+
+        let task = tokio::spawn({
+            let client = client.clone();
+            async move { client.send_request("x").await }
+        });
+
+        // First backoff: 500ms, second: 1000ms
+        advance(Duration::from_millis(500)).await;
+        tokio::task::yield_now().await;
+        advance(Duration::from_millis(1000)).await;
+        tokio::task::yield_now().await;
+
+        let err = task.await.expect("join ok").expect_err("should fail");
+        match err {
+            DeepSeekError::ServerBusy => {}
+            DeepSeekError::ApiError { status: 503, .. } => {}
+            DeepSeekError::Timeout { .. } => {}
+            other => panic!("expected ServerBusy, 503 ApiError, or Timeout, got {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn send_messages_raw_maps_http_errors() {
+        let server = MockServer::start().await;
+        let client = build_client(&server.uri());
+
+        // 400 -> ApiError
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(400).set_body_string("bad req"))
+            .mount(&server)
+            .await;
+
+        let err = client
+            .send_messages_raw(vec![ChatMessage {
+                role: "user".to_string(),
+                content: "hi".to_string(),
+            }])
+            .await
+            .expect_err("should map to ApiError");
+
+        match err {
+            DeepSeekError::ApiError { status, message } => {
+                assert_eq!(status, 400);
+                assert!(message.contains("bad req"));
+            }
+            other => panic!("expected ApiError, got {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn send_request_empty_choices_is_parse_error() {
+        let server = MockServer::start().await;
+        let client = build_client(&server.uri());
+
+        let body = serde_json::json!({ "choices": [] });
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+
+        let err = client
+            .send_request("x")
+            .await
+            .expect_err("should be parse error");
+        assert!(matches!(err, DeepSeekError::ParseError { .. }));
+    }
+
+    #[tokio::test]
+    async fn send_request_invalid_json_in_content_is_parse_error() {
+        let server = MockServer::start().await;
+        let client = build_client(&server.uri());
+
+        let content = "not-json";
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(api_success_body(content)))
+            .mount(&server)
+            .await;
+
+        let err = client
+            .send_request("x")
+            .await
+            .expect_err("should be parse error");
+        assert!(matches!(err, DeepSeekError::ParseError { .. }));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn send_messages_raw_times_out() {
+        let server = MockServer::start().await;
+        let mut cfg = build_config(&server.uri());
+        cfg.timeout = 1; // seconds
+        let client = DeepSeekClient::new(cfg).unwrap();
+
+        // Delay response beyond client timeout
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_secs(2))
+                    .set_body_json(api_success_body(
+                        &serde_json::json!({
+                            "title": "t",
+                            "description": "d",
+                            "content": "c",
+                            "category": null,
+                            "timestamp": "2024-01-01T00:00:00Z",
+                            "confidence": 0.5
+                        })
+                        .to_string(),
+                    )),
+            )
+            .mount(&server)
+            .await;
+
+        let task = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .send_messages_raw(vec![ChatMessage {
+                        role: "user".to_string(),
+                        content: "hello".to_string(),
+                    }])
+                    .await
+            }
+        });
+
+        advance(Duration::from_secs(2)).await;
+        tokio::task::yield_now().await;
+
+        let err = task.await.unwrap().expect_err("should timeout");
+        match err {
+            DeepSeekError::Timeout { seconds } => assert_eq!(seconds, 1),
+            other => panic!("expected Timeout, got {other}"),
+        }
     }
 }
