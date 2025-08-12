@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 
+pub mod cli;
 pub mod config;
 pub mod console;
 pub mod deepseek;
