@@ -1,24 +1,24 @@
 # DeepSeek JSON Chat Application
 
-A robust Rust CLI application that sends requests to DeepSeek's API and receives structured JSON responses. The application automatically adds JSON format specifications to user prompts and parses the structured responses for console display with beautiful formatting.
+A robust Rust CLI that sends requests to DeepSeek's API and receives structured JSON responses. The app injects strict JSON format instructions into your prompt and parses the model’s response for a clean, colored console display.
 
 ## Features
 
-- 🤖 **DeepSeek Integration**: Direct integration with DeepSeek's chat API using `deepseek-chat` model
-- 📋 **Structured JSON Responses**: Enforces JSON format with predefined schema using response_format
-- 🧩 **TaskFinisher-JSON Mode**: Interactive clarifications flow producing a final technical task JSON artifact with self-stop token
-- 🎯 **Field Extraction**: Automatically parses and displays JSON fields with colored output
-- 🛡️ **Advanced Error Handling**: Custom error types with user-friendly messages and recovery suggestions
-- 🔄 **Interactive Mode**: Continuous chat interface until user exits with `/quit` or `/exit` commands
-- 💻 **CLI Interface**: Command-line interface with single query mode support
-- ⚙️ **Configurable**: Customizable model, temperature, token limits, and request timeouts
-- 🎨 **Beautiful Output**: Colored and formatted console output with emojis for better readability
-- ⏱️ **Timeout Support**: Configurable request timeouts with health checks
-- 🌐 **Network Resilience**: Server availability checks and intelligent error handling
-- 🔧 **Modular Architecture**: Clean separation of concerns with dedicated modules
-- ⚡ **Signal Handling**: Graceful shutdown with Ctrl+C and request cancellation support
+- 🤖 **DeepSeek integration**: Uses the `deepseek-chat` model via `/chat/completions` with `response_format = json_object`.
+- 📋 **Structured JSON responses**: Enforces a stable schema and validates/parses the assistant output.
+- 🧩 **TaskFinisher-JSON mode**: Interactive clarifications flow that yields a final technical task JSON artifact with a self-stop token.
+- 🎯 **Field extraction**: Nicely formatted, colored rendering of JSON fields in the terminal.
+- 🛡️ **Advanced error handling**: Clear, user-friendly messages for server busy, timeouts, API and parsing errors.
+- 🔄 **Interactive mode**: Continuous chat until you exit with `/quit` or `/exit`.
+- 💻 **CLI mode**: Send a single query and print the JSON result.
+- ⚙️ **Configurable**: Model, temperature, token limits, base URL, and request timeout.
+- 🎨 **Beautiful output**: Colored, emoji-enhanced display.
+- ⏱️ **Timeouts + retries**: Configurable timeouts and automatic exponential backoff on transient errors (3 attempts).
+- 🌐 **Network resilience**: Smart retry conditions for rate limits and network issues; graceful error messages. No pre-flight health checks are performed.
+- 🔧 **Modular architecture**: Clean separation of config, client, console UI, and TaskFinisher logic.
+- ⚡ **Signal handling**: Ctrl+C exits gracefully. If pressed during a request, the request is canceled and the app exits.
 
-## JSON Response Structure
+## JSON response structure
 
 The application requests responses in the following JSON format:
 
@@ -74,7 +74,7 @@ The application requests responses in the following JSON format:
 
 ## Usage
 
-### Interactive Mode
+### Interactive mode
 
 1. **Run the application**: `cargo run`
 2. **Enter your questions** when prompted
@@ -85,10 +85,9 @@ The application requests responses in the following JSON format:
    - Display structured fields in the console with colors
 4. **Exit options**:
    - Type `/quit` or `/exit` to stop gracefully
-   - Press `Ctrl+C` at any time for immediate shutdown
-   - Press `Ctrl+C` during a request to cancel it and return to the prompt
+   - Press `Ctrl+C` at any time to exit (if pressed during a request, it cancels the request and exits)
 
-### CLI Mode (Single Query)
+### CLI mode (single query)
 
 Use command-line arguments for non-interactive usage:
 
@@ -112,7 +111,19 @@ cargo run -- -q "Explain quantum computing" --base-url "https://custom-api.examp
 cargo run -- --taskfinisher --query "Build a Rust service that fetches prices and caches them" --max-questions 3
 ```
 
-### Command-Line Options
+### TaskFinisher-JSON mode
+
+When run with `--taskfinisher`, the app enters a clarifications flow to produce a final technical task artifact:
+
+- The assistant may ask up to `--max-questions N` clarifying questions (default: 3). Internally, there is a hard cap of 5 rounds.
+- You answer questions one-by-one interactively:
+  - Press Enter to skip a question.
+  - Type `/proceed` to finalize early.
+  - Type `/quit` or `/exit` to abort.
+- The final artifact includes `"status":"final"` and `"end_token":"【END】"` and then stops.
+- You can seed the very first message with `--query "..."`; otherwise you will be prompted for it.
+
+### Command-line options
 
 - `-q, --query <QUERY>`: Send a single query and exit (non-interactive mode)
 - `-m, --model <MODEL>`: Override the default model (default: `deepseek-chat`)
@@ -124,6 +135,10 @@ cargo run -- --taskfinisher --query "Build a Rust service that fetches prices an
 - `--max-questions <N>`: Limit clarifying questions in TaskFinisher mode (default: 3)
 - `-h, --help`: Show help information
 - `-V, --version`: Show version information
+
+Notes:
+- CLI arguments override environment variables.
+- `.env` is loaded once at startup.
 
 ## Example
 
@@ -152,7 +167,7 @@ Type '/quit' or '/exit' to stop.
 👋 Goodbye!
 ```
 
-### CLI Mode
+### CLI mode
 ```bash
 $ cargo run -- --query "What is machine learning?" --temperature 0.8
 {
@@ -212,13 +227,13 @@ DEEPSEEK_TIMEOUT=180
 
 **Note**: The minimal `.env` file only requires `DEEPSEEK_API_KEY`. See `env.example` for the template.
 
-**Note**: Command-line arguments will override environment variable settings.
+**Note**: Command-line arguments override environment variable settings.
 
-## Logging and Debugging
+## Logging and debugging
 
 The application uses structured logging with `tracing` for better debugging and monitoring:
 
-### Log Levels
+### Log levels
 
 Set the `RUST_LOG` environment variable to control logging output:
 
@@ -239,18 +254,17 @@ export RUST_LOG=trace
 export RUST_LOG=deepseek_json::deepseek=debug,info
 ```
 
-### Logging Features
+### Logging features
 
-- 📊 **Request Retry Logging**: Automatic logging of retry attempts with exponential backoff details
-- 🔍 **Structured Output**: JSON-formatted logs with timestamps and contextual information  
-- 🎯 **Configurable Levels**: Fine-grained control over log verbosity
-- 🌐 **Network Debugging**: Detailed HTTP request/response information in debug mode
+- 📊 **Retry visibility**: Warnings logged for retry attempts and backoff timing
+- 🔍 **Structured logging**: Human-readable logs via `tracing`
+- 🎯 **Configurable levels**: Control verbosity with `RUST_LOG`
 
-## Project Architecture
+## Project architecture
 
 The application is built with a modular architecture for maintainability and extensibility:
 
-### Core Modules
+### Core modules
 
 - **`config.rs`**: Configuration management and environment variable handling
   - Validates configuration parameters
@@ -271,6 +285,11 @@ The application is built with a modular architecture for maintainability and ext
   - Error display with contextual help and user-friendly messaging
   - Welcome and goodbye messages
 
+- **`taskfinisher.rs`**: TaskFinisher-JSON flow and schema
+  - System prompt builder with max-question limits and self-stop rule
+  - Strongly-typed JSON structures for questions and the final artifact
+  - Parser for assistant JSON into either clarifying questions or the final artifact
+
 - **`lib.rs`**: Application orchestration and public API
   - Main `App` struct that coordinates all components
   - Initialization and configuration loading
@@ -282,7 +301,7 @@ The application is built with a modular architecture for maintainability and ext
   - Single query mode handling
   - Application startup and error handling
 
-### Design Principles
+### Design principles
 
 - **Async-First**: Built on `tokio` for efficient I/O handling with signal management
 - **Error Transparency**: Custom error types with retry logic and clear user feedback
@@ -291,11 +310,11 @@ The application is built with a modular architecture for maintainability and ext
 - **Separation of Concerns**: Each module has a single, well-defined responsibility
 - **User Experience**: Prioritizes clear feedback, signal handling, and beautiful terminal output
 
-## Error Handling
+## Error handling
 
 The application features advanced error handling with custom error types and user-friendly messaging:
 
-### Error Types
+### Error types
 - **ServerBusy**: Handles rate limiting and server overload scenarios
 - **NetworkError**: DNS failures, connection issues, and network timeouts
 - **Timeout**: Request timeouts with configurable duration
@@ -303,20 +322,19 @@ The application features advanced error handling with custom error types and use
 - **ParseError**: JSON parsing and response format issues
 - **ConfigError**: Configuration validation and setup problems
 
-### Error Features
+### Error features
 - 🎯 **Context-Aware Messages**: Different error types show appropriate user guidance
 - 💡 **Recovery Suggestions**: Each error type includes helpful tips for resolution
 - 🎨 **Color-Coded Display**: Errors are displayed with appropriate colors and emojis
 - 🔍 **Detailed Logging**: Comprehensive error context for troubleshooting
 - 🛡️ **Graceful Degradation**: Application continues running after recoverable errors
 
-### Advanced Retry Logic
+### Advanced retry logic
 - 🔄 **Exponential Backoff**: Automatic retry with increasing delays (500ms, 1s, 2s)
 - 🎯 **Smart Retry Conditions**: Only retries on server busy and network errors
 - 📊 **Retry Logging**: Structured logs showing retry attempts and backoff timing
 - ⚡ **Configurable Attempts**: Maximum of 3 attempts before giving up
 
-### Health Checks
-- Server availability checks before sending requests
-- Automatic retry suggestions for transient failures  
-- Network connectivity validation
+### Cancellation and resilience
+- Ctrl+C exits the app gracefully; during a request, it cancels the request and exits
+- Automatic backoff and retries for transient failures (no pre-flight health checks)

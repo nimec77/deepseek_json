@@ -6,7 +6,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::deepseek::{ChatMessage, DeepSeekClient, DeepSeekError, DeepSeekResponse};
 use crate::taskfinisher::{
     build_system_prompt, parse_taskfinisher_response, AnswerItem, AnswersPayload,
-    ClarifyingQuestion, TaskFinisherResult, DEFAULT_MAX_QUESTIONS, TechnicalTaskArtifact,
+    ClarifyingQuestion, TaskFinisherResult, TechnicalTaskArtifact, DEFAULT_MAX_QUESTIONS,
 };
 
 /// Console interface for the DeepSeek application
@@ -41,7 +41,10 @@ impl Console {
 
         let mut reader = BufReader::new(tokio::io::stdin());
         let mut input = String::new();
-        reader.read_line(&mut input).await.context("Failed to read user input")?;
+        reader
+            .read_line(&mut input)
+            .await
+            .context("Failed to read user input")?;
 
         Ok(input.trim().to_string())
     }
@@ -155,8 +158,14 @@ impl Console {
 
     /// Display a TaskFinisher Technical Task artifact with colored sections
     pub fn display_taskfinisher_artifact(artifact: &TechnicalTaskArtifact) {
-        println!("\n{}", "📦 Technical Task (Artifact):".bright_green().bold());
-        println!("{}", "┌─────────────────────────────────────────────────────────────".green());
+        println!(
+            "\n{}",
+            "📦 Technical Task (Artifact):".bright_green().bold()
+        );
+        println!(
+            "{}",
+            "┌─────────────────────────────────────────────────────────────".green()
+        );
 
         // Basic metadata
         println!(
@@ -170,11 +179,7 @@ impl Console {
             artifact.artifact_name.bright_cyan(),
             format!("v{}", artifact.version).cyan().italic()
         );
-        println!(
-            "{} {}",
-            "│ 📝 Summary:".green(),
-            artifact.summary.white()
-        );
+        println!("{} {}", "│ 📝 Summary:".green(), artifact.summary.white());
 
         // Stakeholders
         println!("{}", "│ — Stakeholders".bright_cyan().bold());
@@ -221,7 +226,11 @@ impl Console {
                 );
                 if let Some(rationale) = &fr.rationale {
                     if !rationale.is_empty() {
-                        println!("{} {}", "│       ↳ rationale:".truecolor(150, 150, 255), rationale.truecolor(170, 170, 255).italic());
+                        println!(
+                            "{} {}",
+                            "│       ↳ rationale:".truecolor(150, 150, 255),
+                            rationale.truecolor(170, 170, 255).italic()
+                        );
                     }
                 }
             }
@@ -244,20 +253,43 @@ impl Console {
         // Data integrations
         println!("{}", "│ — Data Integrations".bright_cyan().bold());
         // RPC providers
-        if !artifact.data_integrations.rpc_providers.selection.is_empty() {
-            println!("{} {}", "│   RPC providers:".green(), format!("{:?}", artifact.data_integrations.rpc_providers.selection).white());
+        if !artifact
+            .data_integrations
+            .rpc_providers
+            .selection
+            .is_empty()
+        {
+            println!(
+                "{} {}",
+                "│   RPC providers:".green(),
+                format!("{:?}", artifact.data_integrations.rpc_providers.selection).white()
+            );
         }
-        if !artifact.data_integrations.rpc_providers.endpoints.is_empty() {
+        if !artifact
+            .data_integrations
+            .rpc_providers
+            .endpoints
+            .is_empty()
+        {
             println!("{}", "│   Endpoints:".green());
             for (name, value) in &artifact.data_integrations.rpc_providers.endpoints {
-                println!("{} {} = {}", "│     •".green(), name.bright_white(), value.to_string().white());
+                println!(
+                    "{} {} = {}",
+                    "│     •".green(),
+                    name.bright_white(),
+                    value.to_string().white()
+                );
             }
         }
         // Price source
         println!(
             "{} {}{}",
             "│   Price source:".green(),
-            artifact.data_integrations.price_source.provider.bright_white(),
+            artifact
+                .data_integrations
+                .price_source
+                .provider
+                .bright_white(),
             match artifact.data_integrations.price_source.ttl_seconds {
                 Some(ttl) => format!(" (ttl={}s)", ttl).truecolor(180, 180, 180),
                 None => "".normal(),
@@ -296,7 +328,11 @@ impl Console {
                     r.id.bright_yellow().bold(),
                     r.description.white()
                 );
-                println!("{} {}", "│     mitigation:".green(), r.mitigation.bright_green());
+                println!(
+                    "{} {}",
+                    "│     mitigation:".green(),
+                    r.mitigation.bright_green()
+                );
             }
         }
 
@@ -328,9 +364,21 @@ impl Console {
         } else {
             for ac in &artifact.acceptance_criteria {
                 println!("{} {}", "│   ✅".green(), ac.id.bright_white().bold());
-                println!("{} {}", "│     Given:".truecolor(180, 180, 255), ac.given.white());
-                println!("{} {}", "│     When:".truecolor(180, 180, 255), ac.when.white());
-                println!("{} {}", "│     Then:".truecolor(180, 180, 255), ac.then.white());
+                println!(
+                    "{} {}",
+                    "│     Given:".truecolor(180, 180, 255),
+                    ac.given.white()
+                );
+                println!(
+                    "{} {}",
+                    "│     When:".truecolor(180, 180, 255),
+                    ac.when.white()
+                );
+                println!(
+                    "{} {}",
+                    "│     Then:".truecolor(180, 180, 255),
+                    ac.then.white()
+                );
             }
         }
 
@@ -352,7 +400,10 @@ impl Console {
             "End:".truecolor(180, 180, 180),
             artifact.end_token.truecolor(180, 180, 180)
         );
-        println!("{}", "└─────────────────────────────────────────────────────────────".green());
+        println!(
+            "{}",
+            "└─────────────────────────────────────────────────────────────".green()
+        );
     }
 
     /// Display an error message with context-aware messaging
@@ -499,8 +550,16 @@ impl Console {
     }
 
     /// Run TaskFinisher-JSON interactive flow.
-    pub async fn run_taskfinisher(&self, initial_prompt: Option<&str>, max_questions: u32) -> Result<()> {
-        let max_q = if max_questions == 0 { DEFAULT_MAX_QUESTIONS } else { max_questions };
+    pub async fn run_taskfinisher(
+        &self,
+        initial_prompt: Option<&str>,
+        max_questions: u32,
+    ) -> Result<()> {
+        let max_q = if max_questions == 0 {
+            DEFAULT_MAX_QUESTIONS
+        } else {
+            max_questions
+        };
         println!("{}", "🤖 TaskFinisher-JSON Mode".bright_blue().bold());
         println!("{} {}", "Max clarifying questions:".blue(), max_q);
 
@@ -537,10 +596,16 @@ impl Console {
                 }
                 Ok(TaskFinisherResult::Clarifying(payload, _)) => {
                     // Show questions
-                    println!("\n{} (round {})", "❓ Clarifying Questions:".bright_yellow().bold(), round);
+                    println!(
+                        "\n{} (round {})",
+                        "❓ Clarifying Questions:".bright_yellow().bold(),
+                        round
+                    );
                     for q in &payload.questions {
                         println!("- {} {}", q.id.bright_white().bold(), q.text.white());
-                        if let Some(opts) = &q.options { println!("  options: {:?}", opts); }
+                        if let Some(opts) = &q.options {
+                            println!("  options: {:?}", opts);
+                        }
                     }
                     // Show checklist
                     println!("\n{}", "🧾 Checklist:".bright_cyan().bold());
@@ -553,8 +618,12 @@ impl Console {
                     );
 
                     // Collect answers and send follow-up
-                    let answers_payload = Self::collect_answers_interactively(&payload.questions).await?;
-                    history.push(ChatMessage { role: "assistant".to_string(), content: raw });
+                    let answers_payload =
+                        Self::collect_answers_interactively(&payload.questions).await?;
+                    history.push(ChatMessage {
+                        role: "assistant".to_string(),
+                        content: raw,
+                    });
                     history.push(ChatMessage {
                         role: "user".to_string(),
                         content: serde_json::to_string(&answers_payload).unwrap(),

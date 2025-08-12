@@ -218,7 +218,7 @@ pub struct TechnicalTaskArtifact {
 #[derive(Debug, Clone)]
 pub enum TaskFinisherResult {
     Clarifying(ClarifyingQuestionsPayload, String), // parsed + raw JSON string
-    Artifact(Box<TechnicalTaskArtifact>, String),        // parsed + raw JSON string
+    Artifact(Box<TechnicalTaskArtifact>, String),   // parsed + raw JSON string
 }
 
 pub fn parse_taskfinisher_response(raw: &str) -> Result<TaskFinisherResult, String> {
@@ -237,7 +237,10 @@ pub fn parse_taskfinisher_response(raw: &str) -> Result<TaskFinisherResult, Stri
         "artifact" => {
             let parsed: TechnicalTaskArtifact = serde_json::from_value(value)
                 .map_err(|e| format!("Invalid artifact shape: {}", e))?;
-            Ok(TaskFinisherResult::Artifact(Box::new(parsed), raw.to_string()))
+            Ok(TaskFinisherResult::Artifact(
+                Box::new(parsed),
+                raw.to_string(),
+            ))
         }
         other => Err(format!("Unsupported 'type': {}", other)),
     }
@@ -253,5 +256,3 @@ pub struct AnswerItem {
 pub struct AnswersPayload {
     pub answers: Vec<AnswerItem>,
 }
-
-

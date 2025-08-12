@@ -9,7 +9,7 @@ pub use config::Config;
 pub use console::Console;
 pub use deepseek::{DeepSeekClient, DeepSeekError, DeepSeekResponse};
 pub use taskfinisher::{
-    parse_taskfinisher_response, build_system_prompt, AnswersPayload, TaskFinisherResult,
+    build_system_prompt, parse_taskfinisher_response, AnswersPayload, TaskFinisherResult,
     DEFAULT_MAX_QUESTIONS,
 };
 
@@ -54,7 +54,11 @@ impl App {
     }
 
     /// Run TaskFinisher-JSON interactive flow. If `initial_prompt` is None, the user will be asked.
-    pub async fn run_taskfinisher(&self, initial_prompt: Option<&str>, max_questions: u32) -> Result<()> {
+    pub async fn run_taskfinisher(
+        &self,
+        initial_prompt: Option<&str>,
+        max_questions: u32,
+    ) -> Result<()> {
         self.console
             .run_taskfinisher(initial_prompt, max_questions)
             .await

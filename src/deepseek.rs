@@ -156,9 +156,17 @@ impl DeepSeekClient {
         loop {
             match self.send_request_once(user_input).await {
                 Ok(response) => return Ok(response),
-                Err(e) if (e.is_server_busy() || e.is_network_error()) && attempts < max_attempts - 1 => {
+                Err(e)
+                    if (e.is_server_busy() || e.is_network_error())
+                        && attempts < max_attempts - 1 =>
+                {
                     attempts += 1;
-                    tracing::warn!("Request attempt {} failed: {}, retrying in {:?}", attempts, e, backoff);
+                    tracing::warn!(
+                        "Request attempt {} failed: {}, retrying in {:?}",
+                        attempts,
+                        e,
+                        backoff
+                    );
                     tokio::time::sleep(backoff).await;
                     backoff = backoff.saturating_mul(2);
                 }
@@ -321,11 +329,16 @@ impl DeepSeekClient {
 
     /// Send arbitrary chat messages and return the raw assistant content string.
     /// The response is requested as a JSON object to encourage strict JSON outputs.
-    pub async fn send_messages_raw(&self, messages: Vec<ChatMessage>) -> Result<String, DeepSeekError> {
+    pub async fn send_messages_raw(
+        &self,
+        messages: Vec<ChatMessage>,
+    ) -> Result<String, DeepSeekError> {
         let request = ChatRequest {
             model: self.config.model.clone(),
             messages,
-            response_format: ResponseFormat { format_type: "json_object".to_string() },
+            response_format: ResponseFormat {
+                format_type: "json_object".to_string(),
+            },
             max_tokens: self.config.max_tokens,
             temperature: self.config.temperature,
             stop: None,
@@ -346,13 +359,18 @@ impl DeepSeekClient {
             return Err(self.handle_error_response(status, response).await);
         }
 
-        let api_response: ApiResponse = response
-            .json()
-            .await
-            .map_err(|e| DeepSeekError::ParseError { message: format!("Failed to parse API response: {}", e) })?;
+        let api_response: ApiResponse =
+            response
+                .json()
+                .await
+                .map_err(|e| DeepSeekError::ParseError {
+                    message: format!("Failed to parse API response: {}", e),
+                })?;
 
         if api_response.choices.is_empty() {
-            return Err(DeepSeekError::ParseError { message: "No choices in API response".to_string() });
+            return Err(DeepSeekError::ParseError {
+                message: "No choices in API response".to_string(),
+            });
         }
 
         Ok(api_response.choices[0].message.content.clone())

@@ -8,7 +8,9 @@ use deepseek_json::{run, App, Config, DEFAULT_MAX_QUESTIONS};
 #[command(name = "deepseek-json")]
 #[command(version = "0.1.0")]
 #[command(author = "Your Name <nimec77@gmail.com>")]
-#[command(about = "A CLI tool for interacting with DeepSeek API and getting structured JSON responses")]
+#[command(
+    about = "A CLI tool for interacting with DeepSeek API and getting structured JSON responses"
+)]
 struct Cli {
     /// Send a single query and exit (non-interactive mode)
     #[arg(short, long)]
@@ -63,7 +65,9 @@ async fn main() -> Result<()> {
     if cli.taskfinisher {
         return handle_taskfinisher_mode(&cli).await;
     }
-    if let Some(query) = &cli.query { return handle_single_query(query, &cli).await; }
+    if let Some(query) = &cli.query {
+        return handle_single_query(query, &cli).await;
+    }
 
     // Run in interactive mode
     run().await.context("Failed to run application")
@@ -79,7 +83,7 @@ async fn handle_single_query(query: &str, cli: &Cli) -> Result<()> {
     config.temperature = cli.temperature;
     config.max_tokens = cli.max_tokens;
     config.timeout = cli.timeout;
-    
+
     if let Some(base_url) = &cli.base_url {
         config.base_url = base_url.clone();
     }
@@ -108,10 +112,13 @@ async fn handle_taskfinisher_mode(cli: &Cli) -> Result<()> {
     config.temperature = cli.temperature;
     config.max_tokens = cli.max_tokens;
     config.timeout = cli.timeout;
-    if let Some(base_url) = &cli.base_url { config.base_url = base_url.clone(); }
+    if let Some(base_url) = &cli.base_url {
+        config.base_url = base_url.clone();
+    }
 
     let app = App::with_config(config)?;
 
     let initial_prompt = cli.query.as_deref();
-    app.run_taskfinisher(initial_prompt, cli.max_questions).await
+    app.run_taskfinisher(initial_prompt, cli.max_questions)
+        .await
 }

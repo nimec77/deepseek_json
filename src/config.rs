@@ -21,7 +21,6 @@ pub struct Config {
 impl Config {
     /// Load configuration from environment variables
     pub fn load() -> Result<Self> {
-
         let api_key = env::var("DEEPSEEK_API_KEY")
             .context("DEEPSEEK_API_KEY environment variable not set")?;
 
