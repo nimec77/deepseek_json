@@ -123,15 +123,14 @@ pub fn display_taskfinisher_artifact(artifact: &TechnicalTaskArtifact) {
                 fr.id.bright_white().bold(),
                 fr.statement.white()
             );
-            if let Some(rationale) = &fr.rationale {
-                if !rationale.is_empty() {
+            if let Some(rationale) = &fr.rationale
+                && !rationale.is_empty() {
                     println!(
                         "{} {}",
                         "│       ↳ rationale:".truecolor(150, 150, 255),
                         rationale.truecolor(170, 170, 255).italic()
                     );
                 }
-            }
         }
     }
     if artifact.requirements.non_functional.is_empty() {

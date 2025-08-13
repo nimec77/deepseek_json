@@ -116,7 +116,9 @@ mod tests {
 
     fn clear_env() {
         for key in ENV_KEYS {
-            env::remove_var(key);
+            unsafe {
+                env::remove_var(key);
+            }
         }
     }
 
@@ -138,7 +140,9 @@ mod tests {
     fn load_defaults_when_only_api_key_set() -> Result<()> {
         let _guard = lock_env();
         clear_env();
-        env::set_var("DEEPSEEK_API_KEY", "test_key");
+        unsafe {
+            env::set_var("DEEPSEEK_API_KEY", "test_key");
+        }
 
         let config = Config::load()?;
         assert_eq!(config.api_key, "test_key");
@@ -157,12 +161,14 @@ mod tests {
     fn load_overrides_all_envs() -> Result<()> {
         let _guard = lock_env();
         clear_env();
-        env::set_var("DEEPSEEK_API_KEY", "k");
-        env::set_var("DEEPSEEK_BASE_URL", "https://example.com");
-        env::set_var("DEEPSEEK_MODEL", "custom-model");
-        env::set_var("DEEPSEEK_MAX_TOKENS", "1234");
-        env::set_var("DEEPSEEK_TEMPERATURE", "1.25");
-        env::set_var("DEEPSEEK_TIMEOUT", "33");
+        unsafe {
+            env::set_var("DEEPSEEK_API_KEY", "k");
+            env::set_var("DEEPSEEK_BASE_URL", "https://example.com");
+            env::set_var("DEEPSEEK_MODEL", "custom-model");
+            env::set_var("DEEPSEEK_MAX_TOKENS", "1234");
+            env::set_var("DEEPSEEK_TEMPERATURE", "1.25");
+            env::set_var("DEEPSEEK_TIMEOUT", "33");
+        }
 
         let config = Config::load()?;
         assert_eq!(config.api_key, "k");
@@ -178,8 +184,10 @@ mod tests {
     fn load_invalid_max_tokens_errors() {
         let _guard = lock_env();
         clear_env();
-        env::set_var("DEEPSEEK_API_KEY", "k");
-        env::set_var("DEEPSEEK_MAX_TOKENS", "not-a-number");
+        unsafe {
+            env::set_var("DEEPSEEK_API_KEY", "k");
+            env::set_var("DEEPSEEK_MAX_TOKENS", "not-a-number");
+        }
 
         let err = Config::load().unwrap_err();
         assert!(
@@ -194,8 +202,10 @@ mod tests {
     fn load_invalid_temperature_errors() {
         let _guard = lock_env();
         clear_env();
-        env::set_var("DEEPSEEK_API_KEY", "k");
-        env::set_var("DEEPSEEK_TEMPERATURE", "abc");
+        unsafe {
+            env::set_var("DEEPSEEK_API_KEY", "k");
+            env::set_var("DEEPSEEK_TEMPERATURE", "abc");
+        }
 
         let err = Config::load().unwrap_err();
         assert!(
@@ -210,8 +220,10 @@ mod tests {
     fn load_invalid_timeout_errors() {
         let _guard = lock_env();
         clear_env();
-        env::set_var("DEEPSEEK_API_KEY", "k");
-        env::set_var("DEEPSEEK_TIMEOUT", "oops");
+        unsafe {
+            env::set_var("DEEPSEEK_API_KEY", "k");
+            env::set_var("DEEPSEEK_TIMEOUT", "oops");
+        }
 
         let err = Config::load().unwrap_err();
         assert!(

@@ -23,11 +23,10 @@ impl Console {
         let mut answers: Vec<AnswerItem> = Vec::new();
         for q in questions {
             println!("\n{} {}", q.id.bright_white().bold(), q.text.white());
-            if let Some(opts) = &q.options {
-                if !opts.is_empty() {
+            if let Some(opts) = &q.options
+                && !opts.is_empty() {
                     println!("{} {:?}", "options:".white(), opts);
                 }
-            }
 
             let prompt = format!("Your answer for {}: ", q.id);
             let input = super::input::prompt_user(&prompt).await?;

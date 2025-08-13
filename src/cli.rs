@@ -49,8 +49,10 @@ pub struct Cli {
 /// Entry point for running the application via CLI
 pub async fn run_cli() -> Result<()> {
     // Initialize logging
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info");
+    unsafe {
+        if env::var("RUST_LOG").is_err() {
+            env::set_var("RUST_LOG", "info");
+        }
     }
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
